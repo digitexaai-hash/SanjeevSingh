@@ -112,24 +112,48 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 6. Contact Form Interactive Handler
+  // 6. Contact Form Handler
   const contactForm = document.getElementById('contact-form');
   const formStatus = document.getElementById('form-status');
   const submitBtn = document.getElementById('form-submit-btn');
+
+  // Sanitize user input to prevent XSS
+  function sanitize(input) {
+    const div = document.createElement('div');
+    div.textContent = input;
+    return div.innerHTML;
+  }
+
+  // Validate email format
+  function isValidEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }
 
   if (contactForm && formStatus) {
     contactForm.addEventListener('submit', (event) => {
       event.preventDefault();
 
-      // Get values
-      const name = document.getElementById('name').value.trim();
-      const email = document.getElementById('email').value.trim();
-      const subject = document.getElementById('subject').value.trim();
-      const message = document.getElementById('message').value.trim();
+      // Get and sanitize values
+      const name = sanitize(document.getElementById('name').value.trim());
+      const email = sanitize(document.getElementById('email').value.trim());
+      const subject = sanitize(document.getElementById('subject').value.trim());
+      const message = sanitize(document.getElementById('message').value.trim());
 
-      // Basic local check
+      // Validation
       if (!name || !email || !subject || !message) {
         formStatus.textContent = 'Please fill in all the required fields.';
+        formStatus.className = 'form-status error';
+        return;
+      }
+
+      if (!isValidEmail(email)) {
+        formStatus.textContent = 'Please enter a valid email address.';
+        formStatus.className = 'form-status error';
+        return;
+      }
+
+      if (name.length > 100 || subject.length > 200 || message.length > 5000) {
+        formStatus.textContent = 'Input exceeds maximum length. Please shorten your message.';
         formStatus.className = 'form-status error';
         return;
       }
@@ -145,30 +169,69 @@ document.addEventListener('DOMContentLoaded', () => {
         </svg>
       `;
 
-      // Mock server call (Since this will be deployed on Hostinger, they can hook this form up to Formspree, Web3Forms, or custom PHP)
-      // We will perform a timed response simulation to demonstrate functional UX
-      setTimeout(() => {
-        // Success response representation
-        formStatus.textContent = `Thank you, ${name}! Your message has been sent successfully. Sanjeev will get back to you shortly.`;
-        formStatus.className = 'form-status success';
-        
-        // Reset form inputs
-        contactForm.reset();
-        
-        // Restore button state
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = originalBtnText;
+      // Send via Web3Forms (configure WEB3FORMS_KEY in the constant below)
+      // 1. Sign up free at https://web3forms.com
+      // 2. Get your access key
+      // 3. Replace the key below
+      const WEB3FORMS_KEY = 'YOUR_ACCESS_KEY_HERE';
 
-        // Auto-fade success message after 7 seconds
+      if (WEB3FORMS_KEY !== 'YOUR_ACCESS_KEY_HERE') {
+        const formData = new FormData();
+        formData.append('access_key', WEB3FORMS_KEY);
+        formData.append('name', name);
+        formData.append('email', email);
+        formData.append('subject', subject);
+        formData.append('message', message);
+
+        fetch('https://api.web3forms.com/submit', {
+          method: 'POST',
+          body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            showFormSuccess(name);
+          } else {
+            showFormError('Message delivery failed. Please try again or email directly.');
+          }
+        })
+        .catch(() => {
+          showFormError('Network error. Please check your connection and try again.');
+        })
+        .finally(() => {
+          restoreFormButton(submitBtn, originalBtnText);
+        });
+      } else {
+        // Fallback: log message (no backend configured yet)
+        console.log('Form submission captured:', { name, email, subject, message });
         setTimeout(() => {
-          formStatus.style.display = 'none';
-          formStatus.className = 'form-status';
-          formStatus.textContent = '';
-          formStatus.style.display = '';
-        }, 7000);
-
-      }, 1800);
+          showFormSuccess(name);
+          restoreFormButton(submitBtn, originalBtnText);
+        }, 800);
+      }
     });
+  }
+
+  function showFormSuccess(name) {
+    formStatus.textContent = `Thank you, ${sanitize(name)}! Your message has been sent successfully. Sanjeev will get back to you shortly.`;
+    formStatus.className = 'form-status success';
+    contactForm.reset();
+    setTimeout(() => {
+      formStatus.style.display = 'none';
+      formStatus.className = 'form-status';
+      formStatus.textContent = '';
+      formStatus.style.display = '';
+    }, 7000);
+  }
+
+  function showFormError(message) {
+    formStatus.textContent = message;
+    formStatus.className = 'form-status error';
+  }
+
+  function restoreFormButton(btn, originalText) {
+    btn.disabled = false;
+    btn.innerHTML = originalText;
   }
 
   // 7. Theme Toggle (Dark / Light Mode)
